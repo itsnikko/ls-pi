@@ -1,0 +1,9 @@
+replicaCount: 1
+restartPolicy: Always
+image:
+	repository: platform-interview
+	tag: 0.0.1-SNAPSHOT
+	pullPolicy: Never
+service:
+	type: ClusterIP
+    port: 8080

@@ -1,0 +1,37 @@
+Phase 1:
+- built local environment with gradlew commands
+- docker command was wrong
+  - two -- for single - flag (-p or --publish)
+  - wrong spot in the docker run command (needed before image name)
+- better solved with docker-compose.yml for consistent running of the application
+- run with `docker compose up` while in directory or rebuild with `docker compose up --build <service name>`
+- am i missing something, should the gradlew commands be in the startup? if so, a simple shell script to run the build commands then execute the docker compose commands would suffice
+
+Phase 2 - Architect:
+I ended up running out of time working on this phase. I've not used Terraform with helm deploying a docker image, so most of this work was on the fly. I made significant progress getting to the point that Terraform was able to deploy a default helm chart, but building the helm chart to deploy the local docker image from Phase 1 appears to require a docker registry and I ran out of time deploying one. I'm going to address what my plan was, where I made it to, and what is left to do.
+
+Starting, my local development environment is minikube running on docker.
+I knew that "Pick a container orchestration tool that's easy to set up both locally and in the cloud" could mean many things, but given my discussion with Jeff it's clear that Terraform is the tool to use. He's absolutely right. Terraform's ability to work both in the cloud and locally with little additional resources/providers makes it a great tool. Being statefully aware is another important feature Terraform has over the competing products.
+In my main.tf file I have a provider setup for kubernetes which connects to minikube and a provider for helm to control the chart deployment. The kubernetes provider builds a custom namespace for the helm chart to be deployed into.
+
+The helm chart was supposed to point to a local registry with the platform-interview container built in Phase 1 and deploy the image into Kubernetes from Terraform into the "platform-interview" namespace. That did not happen, but was the plan.
+
+If it was working as intended the main.tf file could be applied, the namespace would be created in kubernetes (if it doesn't exist), and the helm chart deployed to the kubernetes cluster, and the service would become available.
+
+Phase 3 - Architect:
+With Phase 2 complete at this stage I'll address how I'd approach scaling up the infrastructure to meet the changing needs of the infrastructure.
+
+Rationale and appropriate AWS Tools:
+- Launch Configuration
+  First is to specify the type of instance that will deployed when new instances are created. Depending on the application load choosing the appropriate instance size is important. At this point other instance level options can be set such as security groups, AMI image-id, necessary ssh keys, etc.
+- Auto-Scaling Group
+  After building the launch configuration, next is to specify how these instances from the launch configuration will be brought online as they are needed. In the auto-scaling group options such as the VPC, region, min/max instances to deploy, health check time, etc.
+- Auto-Scaling Policy
+  The policy dictates when to mark a change in a monitored condition. This change could be number of network requests, CPU, memory, etc. Any thing related to the instances that needs adjustment. In the case of Loan Street it's important to focus on using dynamic policies that adapt to infrastructure conditions. Additionally applying appropriate cool down periods are necessary otherwise out of control scaling can occur and run up too many instances, thus a large AWS bill.
+- Cloudwatch
+  Based on the auto-scaling policy, Cloudwatch will be able to alarm on a condition and automatically take action by activating the auto-scaling group when network load peaks past acceptable levels per pod. In this example >500 requests/second. However it's important to be proactive and begin scaling up before requests peak so there's no lag time in deploying new instances. After the infrastructure conditions change the auto-scaling policy will mark a change in condition and stop the Cloudwatch alarm.
+
+All this configuration can and should be managed by a tool like Terraform where proper version control of scaling policies. Monitoring of these alarms won't require an engineer to be sitting in the AWS console. Tools like the Cloudwatch Exporter are available for tools like Prometheus which can be integrated into the larger suite of monitoring tools available to the infrastructure team to better understand the health at any given moment.
+
+Feedback:
+This was fun. Bummer I didn't get it working, but fun nonetheless.
